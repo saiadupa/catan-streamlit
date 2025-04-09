@@ -33,7 +33,7 @@ COLORS = {
 # Board generator
 def generate_board(model):
     input_data = np.random.rand(1, 19)
-    _ = model.predict(input_data)  # seed only
+    _ = model.predict(input_data)  # dummy prediction to seed randomness
 
     resources = (
         ['wood'] * 4 +
@@ -55,7 +55,7 @@ def generate_board(model):
         non_desert_tiles = [i for i, r in enumerate(resources) if r != 'desert']
         resources[random.choice(non_desert_tiles)] = 'desert'
 
-    numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6, 
+    numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6,
                8, 8, 9, 9, 10, 10, 11, 11, 12]
     random.shuffle(numbers)
 
@@ -68,9 +68,9 @@ def generate_board(model):
 
     return final_board
 
-# Improved board scoring
+# Balanced scoring
 def rate_board(final_board):
-    score = 50  # start at neutral value
+    score = 50
 
     desert_index = next(i for i, tile in enumerate(final_board) if tile[0] == 'desert')
     desert_pos = positions[desert_index]
@@ -78,17 +78,17 @@ def rate_board(final_board):
     six_eight_indices = [i for i, tile in enumerate(final_board) if tile[1] in [6, 8]]
     res_on_6_8 = [final_board[i][0] for i in six_eight_indices]
 
-    if positions[desert_index] == (0, 0):
-        score -= 15
+    if desert_pos == (0, 0):
+        score -= 10
 
     for idx in six_eight_indices:
         dx = abs(positions[idx][0] - desert_pos[0])
         dy = abs(positions[idx][1] - desert_pos[1])
         if dx <= 1.1 and dy <= 1.1:
-            score -= 10
+            score -= 6
 
     repeat_count = len(res_on_6_8) - len(set(res_on_6_8))
-    score -= repeat_count * 7
+    score -= repeat_count * 4
 
     for i in six_eight_indices:
         for j in six_eight_indices:
@@ -96,14 +96,14 @@ def rate_board(final_board):
                 dx = abs(positions[i][0] - positions[j][0])
                 dy = abs(positions[i][1] - positions[j][1])
                 if dx <= 1.1 and dy <= 1.1:
-                    score -= 6
+                    score -= 5
 
     if len(res_on_6_8) == len(set(res_on_6_8)) and res_on_6_8:
-        score += 8
+        score += 12
 
     for r in res_on_6_8:
         if r in ['wheat', 'wood']:
-            score += 2.5  # up to 5
+            score += 3
 
     all_far = True
     for i in six_eight_indices:
@@ -114,17 +114,16 @@ def rate_board(final_board):
                 if dx <= 1.1 and dy <= 1.1:
                     all_far = False
     if all_far and len(six_eight_indices) >= 2:
-        score += 5
+        score += 8
 
     return int(max(0, min(score, 100)))
-
 
 # Visualizer
 def visualize_board(final_board, score):
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.set_xlim(-4, 4)
     ax.set_ylim(-4, 4)
-    
+
     for i, (x, y) in enumerate(positions):
         resource, number = final_board[i]
         color = COLORS[resource]
@@ -143,19 +142,22 @@ def visualize_board(final_board, score):
 
 # Streamlit UI
 st.title("🌲 Catan Board Generator & Scorer")
-st.markdown("Generate random Settlers of Catan boards and see how well they score.")
+st.markdown("Generate random Settlers of Catan boards and see how well they score based on tile quality.")
 
-if st.button("🎲 Generate Board"):
-    best_score = float('-inf')
-    best_board = None
+if st.button("🎲 Generate Boards"):
+    st.info("Generating 100 boards... Finding top 5!")
+
+    top_boards = []
 
     for _ in range(100):
         board = generate_board(model)
         score = rate_board(board)
-        if score > best_score:
-            best_score = score
-            best_board = board
+        top_boards.append((score, board))
 
-    fig = visualize_board(best_board, best_score)
-    st.pyplot(fig)
-    st.success(f"✅ Best Board Score: {best_score}")
+    top_boards.sort(reverse=True, key=lambda x: x[0])
+
+    for i in range(min(5, len(top_boards))):
+        score, board = top_boards[i]
+        fig = visualize_board(board, score)
+        st.pyplot(fig)
+        st.markdown(f"**Board #{i+1} — Score: {score}**")
