@@ -68,23 +68,27 @@ def generate_board(model):
 
     return final_board
 
-# Board scoring
+# Improved board scoring
 def rate_board(final_board):
-    score = 50
+    score = 50  # start at neutral value
+
     desert_index = next(i for i, tile in enumerate(final_board) if tile[0] == 'desert')
-    six_eight_indices = [i for i, tile in enumerate(final_board) if tile[1] in [6, 8]]
-
-    res_on_6_8 = [final_board[i][0] for i in six_eight_indices]
-    repeat_count = len(res_on_6_8) - len(set(res_on_6_8))
-    score -= repeat_count * 5
-
     desert_pos = positions[desert_index]
+
+    six_eight_indices = [i for i, tile in enumerate(final_board) if tile[1] in [6, 8]]
+    res_on_6_8 = [final_board[i][0] for i in six_eight_indices]
+
+    if positions[desert_index] == (0, 0):
+        score -= 15
+
     for idx in six_eight_indices:
-        sx, sy = positions[idx]
-        dx = abs(sx - desert_pos[0])
-        dy = abs(sy - desert_pos[1])
+        dx = abs(positions[idx][0] - desert_pos[0])
+        dy = abs(positions[idx][1] - desert_pos[1])
         if dx <= 1.1 and dy <= 1.1:
-            score -= 7
+            score -= 10
+
+    repeat_count = len(res_on_6_8) - len(set(res_on_6_8))
+    score -= repeat_count * 7
 
     for i in six_eight_indices:
         for j in six_eight_indices:
@@ -92,11 +96,30 @@ def rate_board(final_board):
                 dx = abs(positions[i][0] - positions[j][0])
                 dy = abs(positions[i][1] - positions[j][1])
                 if dx <= 1.1 and dy <= 1.1:
-                    score -= 5
+                    score -= 6
 
-    return score
+    if len(res_on_6_8) == len(set(res_on_6_8)) and res_on_6_8:
+        score += 8
 
-# Board visualizer
+    for r in res_on_6_8:
+        if r in ['wheat', 'wood']:
+            score += 2.5  # up to 5
+
+    all_far = True
+    for i in six_eight_indices:
+        for j in six_eight_indices:
+            if i != j:
+                dx = abs(positions[i][0] - positions[j][0])
+                dy = abs(positions[i][1] - positions[j][1])
+                if dx <= 1.1 and dy <= 1.1:
+                    all_far = False
+    if all_far and len(six_eight_indices) >= 2:
+        score += 5
+
+    return int(max(0, min(score, 100)))
+
+
+# Visualizer
 def visualize_board(final_board, score):
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.set_xlim(-4, 4)
@@ -118,7 +141,7 @@ def visualize_board(final_board, score):
     plt.title(f"Board Score: {score}", fontsize=14)
     return fig
 
-# Streamlit App
+# Streamlit UI
 st.title("🌲 Catan Board Generator & Scorer")
 st.markdown("Generate random Settlers of Catan boards and see how well they score.")
 
